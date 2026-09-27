@@ -1,0 +1,13 @@
+fastapi[standard]
+uvicorn[standard]
+sqlalchemy[asyncio]
+alembic
+asyncpg
+pydantic
+celery
+redis
+aiosmtplib
+Jinja2
+email-validator
+python-multipart
+requests

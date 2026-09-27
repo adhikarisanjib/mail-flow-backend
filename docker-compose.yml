@@ -1,0 +1,109 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: email_service_postgres
+    environment:
+      POSTGRES_USER: email_user
+      POSTGRES_PASSWORD: email_password
+      POSTGRES_DB: email_service
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U email_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - email_network
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: email_service_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - email_network
+
+  # FastAPI Server
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: email_service_api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://email_user:email_password@postgres:5432/email_service
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    networks:
+      - email_network
+
+  # Celery Worker
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: email_service_celery_worker
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=4
+    environment:
+      DATABASE_URL: postgresql+asyncpg://email_user:email_password@postgres:5432/email_service
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+      - api
+    volumes:
+      - .:/app
+    networks:
+      - email_network
+
+  # Celery Flower (monitoring)
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: email_service_flower
+    command: celery -A app.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    depends_on:
+      - redis
+      - celery_worker
+    networks:
+      - email_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  email_network:
+    driver: bridge

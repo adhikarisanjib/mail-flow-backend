@@ -1,0 +1,16 @@
+{
+    "python.formatting.provider": "black",
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.formatOnSave": true,
+        "editor.wordWrapColumn": 160,
+        "editor.codeActionsOnSave": {
+        "source.organizeImports": "explicit"
+        },
+    },
+    "[html]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true,
+        "prettier.printWidth": 180
+    }
+}
